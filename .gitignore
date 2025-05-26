@@ -1,0 +1,6 @@
+tcdata/*
+user_data/*
+runs/*
+prediction_result/*
+
+!.gitkeep
