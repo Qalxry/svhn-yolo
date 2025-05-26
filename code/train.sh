@@ -27,7 +27,7 @@ run_python_script() {
     fi
 }
 
-run_python_script "code/download_data.py"
+run_python_script "code/get_dataset.py"
 run_python_script "code/augment.py"
 run_python_script "code/train.py"
 echo "所有脚本执行完成"

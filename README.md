@@ -14,20 +14,20 @@
 
 ```
 .
-├── code
-│   ├── augment.py             # 数据增强脚本
-│   ├── download_data.py       # 下载并转换数据集脚本
-│   ├── predict.py             # 预测脚本
-│   ├── test.sh                # 执行预测流程
-│   ├── train.py               # 模型训练脚本
-│   └── train.sh               # 执行数据准备和训练流程
-├── prediction_result          # 存放预测结果的目录 (运行后生成)
-│   └── result.csv             # 最终的预测结果 (运行后生成)
 ├── README.md                  # 项目说明文档
 ├── tcdata
 │   ├── raw_data/              # 存放下载的原始数据和解压后的文件 (运行后生成)
 │   ├── yolo_dataset/          # 转换为YOLO格式的原始数据集 (运行后生成)
 │   └── yolo_dataset_enhanced/ # 经过增强后的最终数据集 (运行后生成)
+├── code
+│   ├── get_dataset.py         # 下载并转换数据集脚本
+│   ├── augment.py             # 数据增强脚本
+│   ├── train.py               # 模型训练脚本
+│   ├── predict.py             # 预测脚本
+│   ├── test.sh                # 执行预测流程
+│   └── train.sh               # 执行数据准备和训练流程
+├── prediction_result          # 存放预测结果的目录 (运行后生成)
+│   └── result.csv             # 最终的预测结果 (运行后生成)
 └── user_data
      ├── model_data
      │   └── yolo_svhn_best.pt  # 训练好的最佳模型权重 (运行后生成)
@@ -73,7 +73,7 @@ bash code/train.sh
 
 此脚本会依次执行：
 
-1. `code/download_data.py`:
+1. `code/get_dataset.py`:
     - 从天池服务器下载原始的 SVHN 数据集压缩包和 JSON 标注文件。
     - 解压文件到 `tcdata/raw_data/`。
     - 将数据转换为 YOLO 格式，并存放在 `tcdata/yolo_dataset/`。
@@ -110,7 +110,7 @@ bash code/test.sh
 
 ## 脚本详解
 
-- **`code/download_data.py`**:
+- **`code/get_dataset.py`**:
   - 负责从网络下载数据集。
   - 调用 `convert_to_yolo_format` 函数，将 JSON 格式的标签（包含每个数字的位置和值）转换为 YOLO 需要的 `.txt` 格式（`class_id x_center y_center width height`）。
 
