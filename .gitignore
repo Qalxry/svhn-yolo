@@ -4,3 +4,4 @@ runs/*
 prediction_result/*
 
 !.gitkeep
+/*.pt

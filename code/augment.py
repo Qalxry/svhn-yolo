@@ -6,6 +6,7 @@ import random
 from tqdm import tqdm
 import albumentations as A
 import matplotlib.pyplot as plt
+import concurrent.futures
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.join(SCRIPT_DIR, "..")
@@ -19,55 +20,14 @@ ORIGINAL_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset")
 ENHANCED_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset_enhanced")
 
 # 配置选项
-USE_VAL_FOR_TRAIN = True  # 是否将验证集的一部分加入训练集
+NUM_WORKERS = os.cpu_count()  # 使用CPU核心数的4倍作为工作线程数
+USE_VAL_FOR_TRAIN = False  # 是否将验证集的一部分加入训练集
 VAL_TRAIN_RATIO = 0.8  # 验证集中用于训练的比例
 SAVE_AUGMENTATION_PREVIEW = True  # 是否预览增强结果
-SHOW_PREVIEW = True  # 是否显示增强预览
+SHOW_PREVIEW = False  # 是否显示增强预览
 
 
-def get_augmentation(extra=False):
-    """
-    创建数据增强管道
-
-    Args:
-        extra: 是否应用更强的增强
-
-    Returns:
-        配置好的增强管道
-    """
-    return A.Compose(
-        [
-            A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=1.0 if extra else 0.7),
-            A.Affine(
-                scale=(0.8, 1.2),
-                translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
-                rotate=(-15, 15),
-                shear=(-10, 10),
-                p=1.0 if extra else 0.7,
-            ),
-            A.Blur(blur_limit=3, p=0.5 if extra else 0.3),
-            A.RGBShift(r_shift_limit=20, g_shift_limit=20, b_shift_limit=20, p=0.7 if extra else 0.5),
-            A.OneOf(
-                [
-                    A.MotionBlur(blur_limit=3, p=0.5),
-                    A.MedianBlur(blur_limit=3, p=0.5),
-                    A.GaussianBlur(blur_limit=3, p=0.5),
-                ],
-                p=0.3 if extra else 0.1,
-            ),
-            A.OneOf(
-                [
-                    A.CLAHE(clip_limit=2),
-                    A.Sharpen(),
-                    A.Emboss(),
-                ],
-                p=0.3 if extra else 0.1,
-            ),
-        ]
-    )
-
-
-# # 图像增强配置
+# # 图像增强配置 (Basic)
 # def get_augmentation(extra=False):
 #     return A.Compose(
 #         [
@@ -75,8 +35,148 @@ def get_augmentation(extra=False):
 #             A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=1.0 if extra else 0.5),
 #             A.Rotate(limit=25, p=1.0 if extra else 0.5),
 #             A.Blur(blur_limit=3, p=1.0 if extra else 0.5),
-#         ]
+#         ],
+#         bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0),
 #     )
+
+# # 图像增强配置 (Advanced)
+# def get_augmentation(extra=False):
+#     """
+#     创建数据增强管道
+
+#     Args:
+#         extra: 是否应用更强的增强
+
+#     Returns:
+#         配置好的增强管道
+#     """
+#     return A.Compose(
+#         [
+#             A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=1.0 if extra else 0.7),
+#             A.Affine(
+#                 scale=(0.8, 1.2),
+#                 translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
+#                 rotate=(-15, 15),
+#                 shear=(-10, 10),
+#                 p=1.0 if extra else 0.7,
+#             ),
+#             A.Blur(blur_limit=3, p=0.5 if extra else 0.3),
+#             A.RGBShift(r_shift_limit=20, g_shift_limit=20, b_shift_limit=20, p=0.7 if extra else 0.5),
+#             A.OneOf(
+#                 [
+#                     A.MotionBlur(blur_limit=3, p=0.5),
+#                     A.MedianBlur(blur_limit=3, p=0.5),
+#                     A.GaussianBlur(blur_limit=3, p=0.5),
+#                 ],
+#                 p=0.3 if extra else 0.1,
+#             ),
+#             A.OneOf(
+#                 [
+#                     A.CLAHE(clip_limit=2),
+#                     A.Sharpen(),
+#                     A.Emboss(),
+#                 ],
+#                 p=0.3 if extra else 0.1,
+#             ),
+#         ],
+#         bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0),
+#     )
+
+
+# 图像增强配置 (Ultra SOTA)
+def get_augmentation(extra=False, is_small=False):
+    """
+    超级 SOTA 图像增强管道
+
+    Args:
+        extra: 是否应用更强的增强
+
+    Returns:
+        A.Compose 增强流水线
+    """
+    return A.Compose(
+        [
+            # 亮度 / 对比度 / 色相 / 饱和度
+            A.OneOf(
+                [
+                    A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.4, p=0.7),
+                    A.HueSaturationValue(hue_shift_limit=30, sat_shift_limit=40, val_shift_limit=30, p=0.7),
+                    A.RGBShift(r_shift_limit=20, g_shift_limit=20, b_shift_limit=20, p=0.7),
+                ],
+                p=1.0 if extra else 0.8,
+            ),
+            # 几何变换 (使用仿射变换替换 ShiftScaleRotate 和 Perspective)
+            A.Affine(
+                scale=(0.8, 1.2),
+                translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
+                rotate=(-10, 10),
+                shear=(-15, 15),
+                fit_output=False,
+                border_mode=cv2.BORDER_REPLICATE,
+                p=1.0 if extra else 0.7,
+            ),
+            A.OneOf(
+                [
+                    A.ElasticTransform(
+                        alpha=1,
+                        sigma=50,
+                        interpolation=cv2.INTER_LINEAR,
+                        border_mode=cv2.BORDER_REPLICATE,
+                        p=0.5,
+                    ),
+                    A.GridDistortion(num_steps=5, distort_limit=0.3, p=0.5),
+                    A.OpticalDistortion(
+                        distort_limit=(-0.2, 0.2),
+                        interpolation=cv2.INTER_LINEAR,
+                        border_mode=cv2.BORDER_CONSTANT,
+                        p=0.5,
+                    ),
+                ],
+                p=0.8 if extra else 0.5,
+            ),
+            # 噪声 / 压缩 / 下采样
+            A.OneOf(
+                [
+                    A.GaussNoise(
+                        std_range=(0.1, 0.3), mean_range=(0, 0), per_channel=True, noise_scale_factor=0.1, p=0.5
+                    ),
+                    A.ISONoise(color_shift=(0.01, 0.05), p=0.5),
+                    A.ImageCompression(quality_range=(30, 100), p=0.5),
+                    A.Downscale(scale_range=(0.5, 0.75), p=0.5),
+                ],
+                p=0.6 if extra and not is_small else 0.4,
+            ),
+            # 模糊
+            A.OneOf(
+                [
+                    A.MotionBlur(blur_limit=3, p=0.5),
+                    A.MedianBlur(blur_limit=3, p=0.5),
+                    A.GaussianBlur(blur_limit=2, p=0.5),
+                    # A.GlassBlur(sigma=0.5, max_delta=4, iterations=2, p=0.3),
+                ],
+                p=0.5 if extra and not is_small else 0.3,
+            ),
+            # 天气/光照效果
+            A.RandomFog(fog_coef_range=(0.1, 0.3), p=0.3 if extra else 0.1),
+            # A.RandomSunFlare(flare_roi=(0.0, 0.5, 1.0, 1.0), angle_range=(0.3, 1), src_color=(200, 200, 200), p=0.2 if extra and not is_small else 0.1),
+            # A.RandomShadow(shadow_roi=(0.0, 0.5, 1.0, 1.0), num_shadows_limit=(1, 3), p=0.3 if extra else 0.1),
+            # 颜色通道打乱 / 灰度
+            A.OneOf(
+                [
+                    A.ChannelShuffle(p=0.3),
+                    # A.ToGray(p=0.3),
+                ],
+                p=0.3 if extra else 0.1,
+            ),
+        ],
+        bbox_params=A.BboxParams(
+            format="yolo",
+            label_fields=["class_labels"],
+            min_visibility=0.0,
+            clip=True,
+            filter_invalid_bboxes=True,
+        ),
+    )
 
 
 def read_yolo_label(label_path):
@@ -122,7 +222,7 @@ def write_yolo_label(label_path, bboxes, class_labels):
         for i in range(len(bboxes)):
             bbox = bboxes[i]
             class_id = class_labels[i]
-            line = f"{class_id} {bbox[0]:.6f} {bbox[1]:.6f} {bbox[2]:.6f} {bbox[3]:.6f}\n"
+            line = f"{int(class_id)} {bbox[0]:.6f} {bbox[1]:.6f} {bbox[2]:.6f} {bbox[3]:.6f}\n"
             f.write(line)
 
 
@@ -203,15 +303,16 @@ def print_dataset_info(dataset_dir):
 
 def preview_augmentation_batch(img_dir, num_images=5, index_start=0, show=True):
     """
-    预览增强结果
+    预览增强结果，并绘制检测框（使用matplotlib的patches和不同颜色/标签）
 
     Args:
         img_dir: 图像目录
         num_images: 要预览的图像数量
     """
+    import matplotlib.patches as patches
+
     # 获取原始图像和增强图像
     img_files = [f for f in os.listdir(img_dir) if f.endswith((".png", ".jpg", ".jpeg"))]
-
     # 筛选出原始图像和它们的增强版本
     original_files = [f for f in img_files if not ("_aug" in f or "val_" in f)][index_start : num_images + index_start]
 
@@ -219,49 +320,93 @@ def preview_augmentation_batch(img_dir, num_images=5, index_start=0, show=True):
         print("没有找到适合预览的图像")
         return
 
-    # 创建图形
+    # 颜色列表
+    color_list = [
+        "#e6194b",
+        "#3cb44b",
+        "#ffe119",
+        "#4363d8",
+        "#f58231",
+        "#911eb4",
+        "#46f0f0",
+        "#f032e6",
+        "#bcf60c",
+        "#fabebe",
+    ]
+
+    def draw_boxes_matplotlib(ax, image, label_path):
+        img_h, img_w = image.shape[:2]
+        ax.imshow(image)
+        if os.path.exists(label_path):
+            with open(label_path, "r") as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) == 5:
+                        class_id, x, y, w, h = map(float, parts)
+                        # YOLO格式转为像素坐标
+                        x1 = (x - w / 2) * img_w
+                        y1 = (y - h / 2) * img_h
+                        box_w = w * img_w
+                        box_h = h * img_h
+                        color = color_list[int(class_id) % len(color_list)]
+                        rect = patches.Rectangle((x1, y1), box_w, box_h, linewidth=2, edgecolor=color, facecolor="none")
+                        ax.add_patch(rect)
+                        ax.text(
+                            x1,
+                            y1 - 2,
+                            f"{int(class_id)}",
+                            color=color,
+                            fontsize=10,
+                            weight="bold",
+                            bbox=dict(facecolor="white", alpha=0.5, edgecolor="none", pad=0),
+                        )
+        ax.axis("off")
+
     fig, axes = plt.subplots(num_images, 3, figsize=(12, 2 * num_images))
 
     for i, orig_file in enumerate(original_files):
         # 读取原始图像
         orig_img = cv2.imread(os.path.join(img_dir, orig_file))
         orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
+        orig_label = os.path.splitext(orig_file)[0] + ".txt"
+        orig_label_path = os.path.join(os.path.dirname(img_dir), "labels", orig_label)
 
         # 查找此图像的增强版本
         base_name = os.path.splitext(orig_file)[0]
         aug1_file = f"{base_name}_aug1{os.path.splitext(orig_file)[1]}"
         aug2_file = f"{base_name}_aug2{os.path.splitext(orig_file)[1]}"
+        aug1_label = f"{base_name}_aug1.txt"
+        aug2_label = f"{base_name}_aug2.txt"
+        aug1_label_path = os.path.join(os.path.dirname(img_dir), "labels", aug1_label)
+        aug2_label_path = os.path.join(os.path.dirname(img_dir), "labels", aug2_label)
 
-        # 读取增强图像
+        # 原图
+        ax0 = axes[i, 0] if num_images > 1 else axes[0]
+        draw_boxes_matplotlib(ax0, orig_img, orig_label_path)
+        ax0.set_title(f"Original: {orig_file}")
+
+        # 增强1
         if os.path.exists(os.path.join(img_dir, aug1_file)):
             aug1_img = cv2.imread(os.path.join(img_dir, aug1_file))
             aug1_img = cv2.cvtColor(aug1_img, cv2.COLOR_BGR2RGB)
+            draw_boxes_matplotlib(axes[i, 1], aug1_img, aug1_label_path)
         else:
-            aug1_img = np.zeros_like(orig_img)
+            axes[i, 1].imshow(np.zeros_like(orig_img))
+            axes[i, 1].axis("off")
+        axes[i, 1].set_title(f"Augmented 1: {aug1_file}")
 
+        # 增强2
         if os.path.exists(os.path.join(img_dir, aug2_file)):
             aug2_img = cv2.imread(os.path.join(img_dir, aug2_file))
             aug2_img = cv2.cvtColor(aug2_img, cv2.COLOR_BGR2RGB)
+            draw_boxes_matplotlib(axes[i, 2], aug2_img, aug2_label_path)
         else:
-            aug2_img = np.zeros_like(orig_img)
-
-        # 显示图像
-        axes[i, 0].imshow(orig_img)
-        axes[i, 0].set_title(f"Original: {orig_file}")
-        axes[i, 0].axis("off")
-
-        axes[i, 1].imshow(aug1_img)
-        axes[i, 1].set_title(f"Augmented 1: {aug1_file}")
-        axes[i, 1].axis("off")
-
-        axes[i, 2].imshow(aug2_img)
+            axes[i, 2].imshow(np.zeros_like(orig_img))
+            axes[i, 2].axis("off")
         axes[i, 2].set_title(f"Augmented 2: {aug2_file}")
-        axes[i, 2].axis("off")
 
     plt.tight_layout()
-    # 确保目录存在
     os.makedirs(USER_DATA_DIR, exist_ok=True)
-    # 保存预览图像
     print(f"保存增强预览图像到 {USER_DATA_DIR}")
     plt.savefig(
         os.path.join(USER_DATA_DIR, f"augmentation_preview_{index_start}-{index_start+num_images}.png"),
@@ -366,33 +511,88 @@ def augment_dataset(use_val_for_train=USE_VAL_FOR_TRAIN, preview=SAVE_AUGMENTATI
     print(f"数据集增强完成，增强后的数据集保存在 {ENHANCED_DATASET_DIR}")
 
 
+def copy_image(args):
+    src_img_dir, dst_img_dir, img_file = args
+    src_path = os.path.join(src_img_dir, img_file)
+    dst_path = os.path.join(dst_img_dir, img_file)
+    shutil.copy2(src_path, dst_path)
+
+
+def copy_label(args):
+    src_label_dir, dst_label_dir, label_file = args
+    src_path = os.path.join(src_label_dir, label_file)
+    dst_path = os.path.join(dst_label_dir, label_file)
+    shutil.copy2(src_path, dst_path)
+
+
 def copy_dataset(src_img_dir, src_label_dir, dst_img_dir, dst_label_dir):
     """
-    复制数据集从源目录到目标目录
+    复制数据集从源目录到目标目录，使用进程池加速
     """
     src_image_list = [f for f in os.listdir(src_img_dir) if f.endswith((".png", ".jpg", ".jpeg"))]
+    img_args = [(src_img_dir, dst_img_dir, img_file) for img_file in src_image_list]
 
-    # 复制图像
-    for img_file in tqdm(src_image_list, desc="Copying images"):
-        src_path = os.path.join(src_img_dir, img_file)
-        dst_path = os.path.join(dst_img_dir, img_file)
-        shutil.copy2(src_path, dst_path)
+    # 复制图像（多进程加速）
+    with concurrent.futures.ThreadPoolExecutor(max_workers=NUM_WORKERS) as executor:
+        list(tqdm(executor.map(copy_image, img_args), total=len(img_args), desc="Copying images"))
 
-    # 复制标签（如果存在）
+    # 复制标签（如果存在，多进程加速）
     if os.path.exists(src_label_dir):
         src_label_list = [f for f in os.listdir(src_label_dir) if f.endswith(".txt")]
-        for label_file in tqdm(src_label_list, desc="Copying labels"):
-            if not label_file.endswith(".txt"):
-                continue
-            # 确保标签文件与图像文件匹配
-            src_path = os.path.join(src_label_dir, label_file)
-            dst_path = os.path.join(dst_label_dir, label_file)
-            shutil.copy2(src_path, dst_path)
+        label_args = [(src_label_dir, dst_label_dir, label_file) for label_file in src_label_list]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=NUM_WORKERS) as executor:
+            list(tqdm(executor.map(copy_label, label_args), total=len(label_args), desc="Copying labels"))
+
+
+def augment_single_image(args):
+    img_file, src_img_dir, src_label_dir, dst_img_dir, dst_label_dir, rare_classes = args
+    img_path = os.path.join(src_img_dir, img_file)
+    label_file = os.path.splitext(img_file)[0] + ".txt"
+    label_path = os.path.join(src_label_dir, label_file)
+
+    image = cv2.imread(img_path)
+    if image is None:
+        return
+
+    bboxes, class_labels = read_yolo_label(label_path)
+    if len(bboxes) > 0:
+        bboxes = np.array(bboxes, dtype=np.float32)
+    else:
+        bboxes = np.zeros((0, 4), dtype=np.float32)
+
+    contains_rare = any(class_id in rare_classes for class_id in class_labels)
+    num_augmentations = 3 if contains_rare else 2
+    is_small_image = image.shape[0] * image.shape[1] < 64 * 64
+
+    for i in range(num_augmentations):
+        augmentation = get_augmentation(extra=contains_rare, is_small=is_small_image)
+        augmented = augmentation(image=image, bboxes=bboxes, class_labels=class_labels)
+        aug_image = augmented["image"]
+        aug_bboxes = augmented["bboxes"]
+        aug_class_labels = augmented["class_labels"]
+
+        new_img_file = f"{os.path.splitext(img_file)[0]}_aug{i+1}{os.path.splitext(img_file)[1]}"
+        new_label_file = f"{os.path.splitext(label_file)[0]}_aug{i+1}.txt"
+
+        cv2.imwrite(os.path.join(dst_img_dir, new_img_file), aug_image)
+        write_yolo_label(os.path.join(dst_label_dir, new_label_file), aug_bboxes, aug_class_labels)
+
+
+def augment_batch_images(args_list):
+    """
+    批量增强图像（用于多进程加速）
+
+    Args:
+        args_list: 包含增强参数的列表
+    """
+    for args in args_list:
+        augment_single_image(args)
 
 
 def augment_train_set(src_img_dir, src_label_dir, dst_img_dir, dst_label_dir):
     """
-    对训练集进行数据增强
+    对训练集进行数据增强（使用进程池并行加速）
 
     Args:
         src_img_dir: 源图像目录
@@ -400,13 +600,9 @@ def augment_train_set(src_img_dir, src_label_dir, dst_img_dir, dst_label_dir):
         dst_img_dir: 目标图像目录
         dst_label_dir: 目标标签目录
     """
-    # 获取所有图像文件
     img_files = [f for f in os.listdir(src_img_dir) if f.endswith((".png", ".jpg", ".jpeg"))]
-
-    # 统计稀有数字的分布
     class_counts = {i: 0 for i in range(10)}
 
-    # 首先统计每个类别的数量
     for img_file in img_files:
         label_file = os.path.splitext(img_file)[0] + ".txt"
         label_path = os.path.join(src_label_dir, label_file)
@@ -419,55 +615,34 @@ def augment_train_set(src_img_dir, src_label_dir, dst_img_dir, dst_label_dir):
     for class_id, count in class_counts.items():
         print(f"数字 {class_id}: {count} 次")
 
-    # 确定哪些类别较少，需要额外增强
     avg_count = sum(class_counts.values()) / len(class_counts)
     rare_classes = [class_id for class_id, count in class_counts.items() if count < avg_count * 0.7]
-
     print(f"较少出现的数字 (将获得额外增强): {rare_classes}")
 
-    # 对每个图像进行增强
-    for img_file in tqdm(img_files, desc="增强训练图像"):
-        img_path = os.path.join(src_img_dir, img_file)
-        label_file = os.path.splitext(img_file)[0] + ".txt"
-        label_path = os.path.join(src_label_dir, label_file)
+    args_list = [
+        (img_file, src_img_dir, src_label_dir, dst_img_dir, dst_label_dir, rare_classes) for img_file in img_files
+    ]
 
-        # 读取图像和标签
-        image = cv2.imread(img_path)
-        if image is None:
-            continue
+    if NUM_WORKERS <= 1:
+        print("使用单线程增强图像...")
+        for args in tqdm(args_list, desc="增强训练图像"):
+            augment_single_image(args)
+    else:
+        print(f"使用 {NUM_WORKERS} 个工作进程增强图像...")
+        
+        # 使用多进程并行增强图像
+        with concurrent.futures.ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
+            list(tqdm(executor.map(augment_single_image, args_list), total=len(args_list), desc="增强训练图像"))
 
-        bboxes, class_labels = read_yolo_label(label_path)
-
-        # 修复：将bboxes转为numpy数组
-        if len(bboxes) > 0:
-            bboxes = np.array(bboxes, dtype=np.float32)
-        else:
-            bboxes = np.zeros((0, 4), dtype=np.float32)
-
-        # 检查是否包含稀有类别
-        contains_rare = any(class_id in rare_classes for class_id in class_labels)
-
-        # 确定增强次数，包含稀有类别的图像获得更多增强
-        num_augmentations = 3 if contains_rare else 2
-
-        # 应用增强
-        for i in range(num_augmentations):
-            # 使用不同的增强策略
-            augmentation = get_augmentation(extra=contains_rare)
-
-            # 应用增强
-            augmented = augmentation(image=image, bboxes=bboxes, class_labels=class_labels)
-            aug_image = augmented["image"]
-            aug_bboxes = augmented["bboxes"]
-            aug_class_labels = augmented["class_labels"]
-
-            # 生成新的文件名
-            new_img_file = f"{os.path.splitext(img_file)[0]}_aug{i+1}{os.path.splitext(img_file)[1]}"
-            new_label_file = f"{os.path.splitext(label_file)[0]}_aug{i+1}.txt"
-
-            # 保存增强后的图像和标签
-            cv2.imwrite(os.path.join(dst_img_dir, new_img_file), aug_image)
-            write_yolo_label(os.path.join(dst_label_dir, new_label_file), aug_bboxes, aug_class_labels)
+        # 如果需要分批处理，可以取消下面的注释
+        # # 将任务划分为 NUM_WORKERS 个部分
+        # chunk_size = len(args_list) // NUM_WORKERS + 1
+        # args_chunks = [args_list[i : i + chunk_size] for i in range(0, len(args_list), chunk_size)]
+        # for i, args_chunk in enumerate(args_chunks):
+        #     print(f"处理批次 {i + 1}/{len(args_chunks)}，包含 {len(args_chunk)} 张图像")
+        # # 使用多线程并行增强，每个线程处理一个批次
+        # with concurrent.futures.ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
+        #     list(tqdm(executor.map(augment_batch_images, args_chunks), total=len(args_chunks), desc="增强训练图像"))
 
 
 def create_yolo_config(yolo_dataset_dir):

@@ -53,15 +53,16 @@ def predict_and_save_results():
         file_code = "".join([str(d[1]) for d in digits])
 
         # 获取文件名
-        file_name = os.path.basename(img_path) + ".txt"
+        file_name = os.path.basename(img_path)
 
         results.append({"file_name": file_name, "file_code": file_code})
 
+    
     # 保存为CSV
     df = pd.DataFrame(results)
     output_path = os.path.join(RESULT_DIR, "result.csv")
     df.to_csv(output_path, index=False)
-    print(f"预测结果已保存到: {output_path}")
+    print(f"预测结果已保存到: '{output_path}'")
 
 
 if __name__ == "__main__":
