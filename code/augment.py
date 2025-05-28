@@ -21,14 +21,15 @@ ENHANCED_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset_enhanced")
 
 # 配置选项
 NUM_WORKERS = os.cpu_count()  # 使用CPU核心数的4倍作为工作线程数
-USE_VAL_FOR_TRAIN = False  # 是否将验证集的一部分加入训练集
+USE_VAL_FOR_TRAIN = True  # 是否将验证集的一部分加入训练集
 VAL_TRAIN_RATIO = 0.8  # 验证集中用于训练的比例
 SAVE_AUGMENTATION_PREVIEW = True  # 是否预览增强结果
-SHOW_PREVIEW = False  # 是否显示增强预览
-
+SHOW_PREVIEW = True  # 是否显示增强预览
+AUGMENT_COUNT = 4
+RARE_MORE_AUGMENT_COUNT = 2
 
 # # 图像增强配置 (Basic)
-# def get_augmentation(extra=False):
+# def get_augmentation(extra=False, **kwargs):
 #     return A.Compose(
 #         [
 #             A.RGBShift(r_shift_limit=20, g_shift_limit=20, b_shift_limit=20, p=1.0 if extra else 0.5),
@@ -36,7 +37,13 @@ SHOW_PREVIEW = False  # 是否显示增强预览
 #             A.Rotate(limit=25, p=1.0 if extra else 0.5),
 #             A.Blur(blur_limit=3, p=1.0 if extra else 0.5),
 #         ],
-#         bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0),
+#         bbox_params=A.BboxParams(
+#             format="yolo",
+#             label_fields=["class_labels"],
+#             min_visibility=0.0,
+#             clip=True,
+#             filter_invalid_bboxes=True,
+#         ),
 #     )
 
 # # 图像增强配置 (Advanced)
@@ -99,9 +106,9 @@ def get_augmentation(extra=False, is_small=False):
             # 亮度 / 对比度 / 色相 / 饱和度
             A.OneOf(
                 [
-                    A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.4, p=0.7),
-                    A.HueSaturationValue(hue_shift_limit=30, sat_shift_limit=40, val_shift_limit=30, p=0.7),
-                    A.RGBShift(r_shift_limit=20, g_shift_limit=20, b_shift_limit=20, p=0.7),
+                    A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.4, p=1),
+                    A.HueSaturationValue(hue_shift_limit=30, sat_shift_limit=40, val_shift_limit=30, p=1),
+                    A.RGBShift(r_shift_limit=20, g_shift_limit=20, b_shift_limit=20, p=1),
                 ],
                 p=1.0 if extra else 0.8,
             ),
@@ -109,10 +116,10 @@ def get_augmentation(extra=False, is_small=False):
             A.Affine(
                 scale=(0.8, 1.2),
                 translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
-                rotate=(-10, 10),
+                rotate=(-15, 15),
                 shear=(-15, 15),
                 fit_output=False,
-                border_mode=cv2.BORDER_REPLICATE,
+                border_mode=cv2.BORDER_CONSTANT,
                 p=1.0 if extra else 0.7,
             ),
             A.OneOf(
@@ -122,14 +129,14 @@ def get_augmentation(extra=False, is_small=False):
                         sigma=50,
                         interpolation=cv2.INTER_LINEAR,
                         border_mode=cv2.BORDER_REPLICATE,
-                        p=0.5,
+                        p=1,
                     ),
-                    A.GridDistortion(num_steps=5, distort_limit=0.3, p=0.5),
+                    A.GridDistortion(num_steps=5, distort_limit=0.3, p=1),
                     A.OpticalDistortion(
                         distort_limit=(-0.2, 0.2),
                         interpolation=cv2.INTER_LINEAR,
                         border_mode=cv2.BORDER_CONSTANT,
-                        p=0.5,
+                        p=1,
                     ),
                 ],
                 p=0.8 if extra else 0.5,
@@ -138,35 +145,34 @@ def get_augmentation(extra=False, is_small=False):
             A.OneOf(
                 [
                     A.GaussNoise(
-                        std_range=(0.1, 0.3), mean_range=(0, 0), per_channel=True, noise_scale_factor=0.1, p=0.5
+                        std_range=(0.1, 0.3), mean_range=(0, 0), per_channel=True, noise_scale_factor=0.1, p=1
                     ),
-                    A.ISONoise(color_shift=(0.01, 0.05), p=0.5),
-                    A.ImageCompression(quality_range=(30, 100), p=0.5),
-                    A.Downscale(scale_range=(0.5, 0.75), p=0.5),
+                    A.ISONoise(color_shift=(0.01, 0.05), p=1),
+                    A.ImageCompression(quality_range=(30, 100), p=1),
+                    A.Downscale(scale_range=(0.5, 0.75), p=1),
                 ],
-                p=0.6 if extra and not is_small else 0.4,
+                p=0.6 if extra and not is_small else 0.0,
             ),
             # 模糊
             A.OneOf(
                 [
-                    A.MotionBlur(blur_limit=3, p=0.5),
-                    A.MedianBlur(blur_limit=3, p=0.5),
-                    A.GaussianBlur(blur_limit=2, p=0.5),
-                    # A.GlassBlur(sigma=0.5, max_delta=4, iterations=2, p=0.3),
+                    A.MotionBlur(blur_limit=3, p=1),
+                    A.MedianBlur(blur_limit=3, p=1),
+                    A.GaussianBlur(blur_limit=2, p=1),
+                    # A.GlassBlur(sigma=0.4, max_delta=2, iterations=2, p=1),
                 ],
-                p=0.5 if extra and not is_small else 0.3,
+                p=0.5 if extra and not is_small else 0.0,
             ),
             # 天气/光照效果
             A.RandomFog(fog_coef_range=(0.1, 0.3), p=0.3 if extra else 0.1),
-            # A.RandomSunFlare(flare_roi=(0.0, 0.5, 1.0, 1.0), angle_range=(0.3, 1), src_color=(200, 200, 200), p=0.2 if extra and not is_small else 0.1),
-            # A.RandomShadow(shadow_roi=(0.0, 0.5, 1.0, 1.0), num_shadows_limit=(1, 3), p=0.3 if extra else 0.1),
+
             # 颜色通道打乱 / 灰度
             A.OneOf(
                 [
-                    A.ChannelShuffle(p=0.3),
+                    A.ChannelShuffle(p=1),
                     # A.ToGray(p=0.3),
                 ],
-                p=0.3 if extra else 0.1,
+                p=0.6 if extra else 0.3,
             ),
         ],
         bbox_params=A.BboxParams(
@@ -362,7 +368,7 @@ def preview_augmentation_batch(img_dir, num_images=5, index_start=0, show=True):
                         )
         ax.axis("off")
 
-    fig, axes = plt.subplots(num_images, 3, figsize=(12, 2 * num_images))
+    fig, axes = plt.subplots(num_images, AUGMENT_COUNT+1, figsize=(AUGMENT_COUNT*4, 3 * num_images))
 
     for i, orig_file in enumerate(original_files):
         # 读取原始图像
@@ -373,37 +379,26 @@ def preview_augmentation_batch(img_dir, num_images=5, index_start=0, show=True):
 
         # 查找此图像的增强版本
         base_name = os.path.splitext(orig_file)[0]
-        aug1_file = f"{base_name}_aug1{os.path.splitext(orig_file)[1]}"
-        aug2_file = f"{base_name}_aug2{os.path.splitext(orig_file)[1]}"
-        aug1_label = f"{base_name}_aug1.txt"
-        aug2_label = f"{base_name}_aug2.txt"
-        aug1_label_path = os.path.join(os.path.dirname(img_dir), "labels", aug1_label)
-        aug2_label_path = os.path.join(os.path.dirname(img_dir), "labels", aug2_label)
 
         # 原图
         ax0 = axes[i, 0] if num_images > 1 else axes[0]
         draw_boxes_matplotlib(ax0, orig_img, orig_label_path)
         ax0.set_title(f"Original: {orig_file}")
 
-        # 增强1
-        if os.path.exists(os.path.join(img_dir, aug1_file)):
-            aug1_img = cv2.imread(os.path.join(img_dir, aug1_file))
-            aug1_img = cv2.cvtColor(aug1_img, cv2.COLOR_BGR2RGB)
-            draw_boxes_matplotlib(axes[i, 1], aug1_img, aug1_label_path)
-        else:
-            axes[i, 1].imshow(np.zeros_like(orig_img))
-            axes[i, 1].axis("off")
-        axes[i, 1].set_title(f"Augmented 1: {aug1_file}")
-
-        # 增强2
-        if os.path.exists(os.path.join(img_dir, aug2_file)):
-            aug2_img = cv2.imread(os.path.join(img_dir, aug2_file))
-            aug2_img = cv2.cvtColor(aug2_img, cv2.COLOR_BGR2RGB)
-            draw_boxes_matplotlib(axes[i, 2], aug2_img, aug2_label_path)
-        else:
-            axes[i, 2].imshow(np.zeros_like(orig_img))
-            axes[i, 2].axis("off")
-        axes[i, 2].set_title(f"Augmented 2: {aug2_file}")
+        for j in range(AUGMENT_COUNT):
+            aug_file = f"{base_name}_aug{j+1}{os.path.splitext(orig_file)[1]}"
+            aug_label = f"{base_name}_aug{j+1}.txt"
+            aug_label_path = os.path.join(os.path.dirname(img_dir), "labels", aug_label)
+            
+            # 增强1
+            if os.path.exists(os.path.join(img_dir, aug_file)):
+                aug_img = cv2.imread(os.path.join(img_dir, aug_file))
+                aug_img = cv2.cvtColor(aug_img, cv2.COLOR_BGR2RGB)
+                draw_boxes_matplotlib(axes[i, j+1], aug_img, aug_label_path)
+            else:
+                axes[i, j+1].imshow(np.zeros_like(orig_img))
+                axes[i, j+1].axis("off")
+            axes[i, j+1].set_title(f"Augmented {j+1}: {aug_file}")
 
     plt.tight_layout()
     os.makedirs(USER_DATA_DIR, exist_ok=True)
@@ -562,8 +557,8 @@ def augment_single_image(args):
         bboxes = np.zeros((0, 4), dtype=np.float32)
 
     contains_rare = any(class_id in rare_classes for class_id in class_labels)
-    num_augmentations = 3 if contains_rare else 2
-    is_small_image = image.shape[0] * image.shape[1] < 64 * 64
+    num_augmentations = AUGMENT_COUNT + RARE_MORE_AUGMENT_COUNT if contains_rare else AUGMENT_COUNT
+    is_small_image = image.shape[0] * image.shape[1] < 80 * 80
 
     for i in range(num_augmentations):
         augmentation = get_augmentation(extra=contains_rare, is_small=is_small_image)
@@ -616,7 +611,7 @@ def augment_train_set(src_img_dir, src_label_dir, dst_img_dir, dst_label_dir):
         print(f"数字 {class_id}: {count} 次")
 
     avg_count = sum(class_counts.values()) / len(class_counts)
-    rare_classes = [class_id for class_id, count in class_counts.items() if count < avg_count * 0.7]
+    rare_classes = [class_id for class_id, count in class_counts.items() if count < avg_count]
     print(f"较少出现的数字 (将获得额外增强): {rare_classes}")
 
     args_list = [
@@ -691,7 +686,7 @@ def completed_tag():
 
 
 if __name__ == "__main__":
-    if not os.path.exists(os.path.join(USER_DATA_DIR, "data_augmented.txt")):
+    if not os.path.exists(os.path.join(USER_DATA_DIR, "data_augmented121.txt")):
         print("开始进行图像数据集增强...")
         if os.path.exists(ENHANCED_DATASET_DIR):
             print(f"已删除旧的增强数据集目录: {ENHANCED_DATASET_DIR}")
