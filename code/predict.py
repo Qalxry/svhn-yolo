@@ -43,6 +43,14 @@ def predict_and_save_results():
     # output_name = "train_set_with_8k_val_augmented"
     # model_path = os.path.join(USER_DATA_DIR, "remote/user_data/train_20250529_003910/weights/best.pt")
 
+    # # 训练了20轮左右的模型
+    # output_name = "train_set_with_8k_val_augmented_preview"
+    # model_path = os.path.join(USER_DATA_DIR, "remote/user_data_preview/user_data/train_20250602_165320/weights/best.pt")
+
+    # # # 训练了30轮的最终模型
+    # output_name = "train_set_with_8k_val_augmented_final_aug"
+    # model_path = os.path.join(USER_DATA_DIR, "remote/final/best.pt")
+    
     model = YOLO(model_path)
 
     # 获取测试图像路径

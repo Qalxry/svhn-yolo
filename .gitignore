@@ -1,7 +1,12 @@
+__pycache__/
+__pycache__/*
+*.pyc
+
 tcdata/*
 user_data/*
 runs/*
 prediction_result/*
+.old/*
 
 !.gitkeep
 /*.pt
