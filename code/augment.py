@@ -1,3 +1,15 @@
+"""
+图像数据集增强脚本
+
+主要流程：
+1. 读取原始YOLO数据集，并复制到增强数据集目录。(多线程加速)
+2. 是否将验证集的一部分加入训练集。
+3. 对训练集进行数据增强，使用Albumentations库。(多进程加速)
+4. 创建YOLO数据集配置文件。
+5. 打印数据集信息，包括图像数量和每个类别的数量。
+6. 预览增强结果（可选）。
+"""
+
 import os
 import cv2
 import numpy as np
@@ -26,10 +38,10 @@ NUM_WORKERS = os.cpu_count()  # 使用CPU核心数的4倍作为工作线程数
 USE_AUGMENT = True  # 是否使用图像增强
 USE_VAL_FOR_TRAIN = True  # 是否将验证集的一部分加入训练集
 VAL_TRAIN_RATIO = 0.8  # 验证集中用于训练的比例
-SAVE_AUGMENTATION_PREVIEW = False  # 是否预览增强结果
+SAVE_AUGMENTATION_PREVIEW = True  # 是否预览增强结果
 SHOW_PREVIEW = False  # 是否显示增强预览
-AUGMENT_COUNT = 4   # 每张图像增强的数量
-RARE_MORE_AUGMENT_COUNT = 2 # 对于较少出现的数字，额外增强的数量
+AUGMENT_COUNT = 4  # 每张图像增强的数量
+RARE_MORE_AUGMENT_COUNT = 2  # 对于较少出现的数字，额外增强的数量
 
 # # 图像增强配置 (Basic)
 # def get_augmentation(extra=False, **kwargs):
@@ -125,6 +137,7 @@ def get_augmentation(extra=False, is_small=False):
                 border_mode=cv2.BORDER_CONSTANT,
                 p=1.0 if extra else 0.7,
             ),
+            # 弹性变换 / 网格扭曲 / 光学扭曲
             A.OneOf(
                 [
                     A.ElasticTransform(
@@ -168,7 +181,6 @@ def get_augmentation(extra=False, is_small=False):
             ),
             # 天气/光照效果
             A.RandomFog(fog_coef_range=(0.1, 0.3), p=0.3 if extra else 0.1),
-
             # 颜色通道打乱 / 灰度
             A.OneOf(
                 [
@@ -179,11 +191,11 @@ def get_augmentation(extra=False, is_small=False):
             ),
         ],
         bbox_params=A.BboxParams(
-            format="yolo",
-            label_fields=["class_labels"],
-            min_visibility=0.0,
-            clip=True,
-            filter_invalid_bboxes=True,
+            format="yolo",  # YOLO格式
+            label_fields=["class_labels"],  # 类别标签字段
+            min_visibility=0.0,  # 最小可见度(0.0表示不限制)
+            clip=True,  # 边界框裁剪(如果超出图像边界则裁剪)
+            filter_invalid_bboxes=True,  # 过滤无效边界框
         ),
     )
 
@@ -371,7 +383,7 @@ def preview_augmentation_batch(img_dir, num_images=5, index_start=0, show=True):
                         )
         ax.axis("off")
 
-    fig, axes = plt.subplots(num_images, AUGMENT_COUNT+1, figsize=(AUGMENT_COUNT*4, 3 * num_images))
+    fig, axes = plt.subplots(num_images, AUGMENT_COUNT + 1, figsize=(AUGMENT_COUNT * 4, 3 * num_images))
 
     for i, orig_file in enumerate(original_files):
         # 读取原始图像
@@ -392,16 +404,16 @@ def preview_augmentation_batch(img_dir, num_images=5, index_start=0, show=True):
             aug_file = f"{base_name}_aug{j+1}{os.path.splitext(orig_file)[1]}"
             aug_label = f"{base_name}_aug{j+1}.txt"
             aug_label_path = os.path.join(os.path.dirname(img_dir), "labels", aug_label)
-            
+
             # 增强1
             if os.path.exists(os.path.join(img_dir, aug_file)):
                 aug_img = cv2.imread(os.path.join(img_dir, aug_file))
                 aug_img = cv2.cvtColor(aug_img, cv2.COLOR_BGR2RGB)
-                draw_boxes_matplotlib(axes[i, j+1], aug_img, aug_label_path)
+                draw_boxes_matplotlib(axes[i, j + 1], aug_img, aug_label_path)
             else:
-                axes[i, j+1].imshow(np.zeros_like(orig_img))
-                axes[i, j+1].axis("off")
-            axes[i, j+1].set_title(f"Augmented {j+1}: {aug_file}")
+                axes[i, j + 1].imshow(np.zeros_like(orig_img))
+                axes[i, j + 1].axis("off")
+            axes[i, j + 1].set_title(f"Augmented {j+1}: {aug_file}")
 
     plt.tight_layout()
     os.makedirs(USER_DATA_DIR, exist_ok=True)
@@ -628,7 +640,7 @@ def augment_train_set(src_img_dir, src_label_dir, dst_img_dir, dst_label_dir):
             augment_single_image(args)
     else:
         print(f"使用 {NUM_WORKERS} 个工作进程增强图像...")
-        
+
         # 使用多进程并行增强图像
         with concurrent.futures.ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
             list(tqdm(executor.map(augment_single_image, args_list), total=len(args_list), desc="增强训练图像"))

@@ -45,7 +45,7 @@
     cd svhn-yolo
     ```
 
-2. **创建 Conda 环境 (推荐)**:
+2. **创建 Conda 环境**:
 
     ```bash
     conda create -n yolo python=3.12

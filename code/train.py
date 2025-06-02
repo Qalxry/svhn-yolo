@@ -10,17 +10,18 @@ USER_DATA_DIR = os.path.join(BASE_DIR, "user_data")
 # YOLO_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset")
 # YOLO_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset_addval")
 # YOLO_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset_enhanced")
-YOLO_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset_enhanced_extra")
+YOLO_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset_enhanced_extra")    # 使用增强后的数据集，240k+图片
 
 os.makedirs(USER_DATA_DIR, exist_ok=True)
 
 
 def train_yolo():
     # 加载YOLO模型
-    model = YOLO(os.path.join(USER_DATA_DIR, "yolo11m.pt"))  # 使用预训练模型
+    # 使用下载的预训练模型
+    model = YOLO(os.path.join(USER_DATA_DIR, "yolo11m.pt"))  
+    # 使用之前训练过几轮的模型继续训练
     # model = YOLO(os.path.join(USER_DATA_DIR, "model_data/yolo_svhn_best.pt"))
     # model = YOLO(os.path.join(USER_DATA_DIR, "model_data/yolo_svhn_best.pt"))
-
     # model = YOLO(os.path.join(USER_DATA_DIR, "train_20250528_181957/weights/best.pt"))
     
     # 训练配置
@@ -29,7 +30,7 @@ def train_yolo():
         "name": f"train_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}",  # 项目名称
         "data": os.path.join(YOLO_DATASET_DIR, "yolo_svhn.yaml"),
         "epochs": 50,  # 训练周期
-        "batch": 16,  # 批量大小
+        "batch": 32,  # 批量大小
         "imgsz": 320,  # 图片大小
         "device": "0" if torch.cuda.is_available() else "cpu",  # 使用GPU或CPU
         "verbose": True,  # 详细信息
@@ -37,7 +38,6 @@ def train_yolo():
         "save": True,  # 保存结果
         "patience": 10,  # 停止周期数
         "plots": True,  # 训练集与验证集性能
-
         "seed": 42,
         
         # 数据增强设置
