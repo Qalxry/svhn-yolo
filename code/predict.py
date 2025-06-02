@@ -33,15 +33,15 @@ def predict_and_save_results():
     
     # # Trained on original train set
     # output_name = "original_train_set"
-    # model_path = os.path.join(USER_DATA_DIR, "remote/new/user_data/train_20250529_012023/weights/best.pt")
+    # model_path = os.path.join(USER_DATA_DIR, "remote/user_data/train_20250529_012023/weights/best.pt")
 
     # # Trained on data which added 8k validation images to the train set
     # output_name = "train_set_with_8k_val"
-    # model_path = os.path.join(USER_DATA_DIR, "remote/new/user_data/train_20250529_012931/weights/best.pt")
+    # model_path = os.path.join(USER_DATA_DIR, "remote/user_data/train_20250529_012931/weights/best.pt")
 
     # # Trained on augmented data which added 8k validation images to the train set
     # output_name = "train_set_with_8k_val_augmented"
-    # model_path = os.path.join(USER_DATA_DIR, "remote/new/user_data/train_20250529_003910/weights/best.pt")
+    # model_path = os.path.join(USER_DATA_DIR, "remote/user_data/train_20250529_003910/weights/best.pt")
 
     model = YOLO(model_path)
 

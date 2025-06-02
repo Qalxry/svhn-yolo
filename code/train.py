@@ -30,7 +30,7 @@ def train_yolo():
         "name": f"train_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}",  # 项目名称
         "data": os.path.join(YOLO_DATASET_DIR, "yolo_svhn.yaml"),
         "epochs": 50,  # 训练周期
-        "batch": 32,  # 批量大小
+        "batch": 64,  # 批量大小（需要约10GB显存，根据设备调整）
         "imgsz": 320,  # 图片大小
         "device": "0" if torch.cuda.is_available() else "cpu",  # 使用GPU或CPU
         "verbose": True,  # 详细信息

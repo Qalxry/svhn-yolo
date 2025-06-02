@@ -18,7 +18,7 @@
 ├── tcdata
 │   ├── raw_data/              # 存放下载的原始数据和解压后的文件 (运行后生成)
 │   ├── yolo_dataset/          # 转换为YOLO格式的原始数据集 (运行后生成)
-│   └── yolo_dataset_enhanced/ # 经过增强后的最终数据集 (运行后生成)
+│   └── yolo_dataset_enhanced_extra/ # 经过增强后的最终数据集 (运行后生成)
 ├── code
 │   ├── get_dataset.py         # 下载并转换数据集脚本
 │   ├── augment.py             # 数据增强脚本
@@ -27,11 +27,11 @@
 │   ├── test.sh                # 执行预测流程
 │   └── train.sh               # 执行数据准备和训练流程
 ├── prediction_result          # 存放预测结果的目录 (运行后生成)
-│   └── result.csv             # 最终的预测结果 (运行后生成)
+│   └── result_best.csv        # 最终的预测结果 (运行后生成)
 └── user_data
      ├── model_data
-     │   └── yolo_svhn_best.pt  # 训练好的最佳模型权重 (运行后生成)
-     ├── yolo11n.pt             # 预训练的YOLO模型 (运行后生成)
+     │   └── best.pt            # 训练好的最佳模型权重 (运行后生成)
+     ├── yolo11m.pt             # 预训练的YOLO模型 (运行后生成)
      ├── data_downloaded.txt    # 数据下载完成的标记文件 (运行后生成)
      └── data_augmented.txt     # 数据增强完成的标记文件 (运行后生成)
 ```
@@ -53,7 +53,7 @@
     ```
 
 3. **安装依赖**:
-    项目依赖于多个 Python 库。您可以通过 `requirements.txt` 文件安装：
+    项目依赖于多个 Python 库。可以通过 `requirements.txt` 文件安装：
 
     ```bash
     pip install -r requirements.txt
@@ -65,7 +65,7 @@
 
 ### 1. 训练模型
 
-执行以下命令，将自动完成数据下载、格式转换、数据增强和模型训练的全过程：
+执行以下命令，将自动完成数据下载、格式转换、数据增强、模型训练、模型推理的全过程：
 
 ```bash
 bash code/train.sh
@@ -79,13 +79,14 @@ bash code/train.sh
     - 将数据转换为 YOLO 格式，并存放在 `tcdata/yolo_dataset/`。
     - 创建 `user_data/data_downloaded.txt` 标记文件，防止重复执行。
 2. `code/augment.py`:
-    - 在 `tcdata/yolo_dataset_enhanced/` 中创建增强后的数据集。
+    - 在 `tcdata/yolo_dataset_enhanced_extra/` 中创建增强后的数据集。
     - **策略**: 将部分验证集数据并入训练集，并对训练集进行数据增强（对稀有数字进行更强的增强）。
     - 创建 `user_data/data_augmented.txt` 标记文件。
 3. `code/train.py`:
     - 加载 `user_data/` 目录下的预训练模型。
-    - 使用 `tcdata/yolo_dataset_enhanced/` 中的数据进行训练。
-    - 训练完成后，最佳模型将保存为 `user_data/model_data/yolo_svhn_best.pt`。
+    - 使用 `tcdata/yolo_dataset_enhanced_extra/` 中的数据进行训练。
+    - 训练完成后，最佳模型将保存为 `user_data/model_data/best.pt`。
+4. `code/predict.py`：功能见下方描述。
 
 ### 2. 生成预测结果
 
@@ -97,10 +98,10 @@ bash code/test.sh
 
 此脚本会执行 `code/predict.py`：
 
-- 加载训练好的最佳模型 `user_data/model_data/yolo_svhn_best.pt`。
-- 对 `tcdata/yolo_dataset_enhanced/test/images/` 目录下的所有图片进行推理。
+- 加载训练好的最佳模型 `user_data/model_data/best.pt`。
+- 对 `tcdata/yolo_dataset/test/images/` 目录下的所有图片进行推理。
 - 对于每张图片，脚本会识别出所有数字，并根据它们的横向位置（x 坐标）从左到右排序，拼接成一个字符串。
-- 最终结果将保存到 `prediction_result/result.csv` 文件中，格式如下：
+- 最终结果将保存到 `prediction_result/result_best.csv` 文件中，格式如下：
 
 | file_name | file_code |
 | :-------- | :-------- |
@@ -129,3 +130,12 @@ bash code/test.sh
   - 加载训练好的模型。
   - 遍历测试图片，进行预测。
   - 关键处理步骤：对检测到的边界框按 `x` 坐标排序，以确保数字序列的正确性。
+
+## 训练结果
+
+| 编号 |             版本             | 训练集图片数量 | Rank/分数  |
+| :--: | :--------------------------: | :------------: | :--------: |
+|  1   |          原始数据集          |     40000      | 168/0.9096 |
+|  2   | 将8000张验证集数据并入训练集 |     48000      | 128/0.9148 |
+|  3   |   在2的基础上进行图像增强    |     244770     | 39/0.9251  |
+
