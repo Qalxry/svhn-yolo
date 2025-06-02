@@ -5,3 +5,5 @@ prediction_result/*
 
 !.gitkeep
 /*.pt
+*.pth
+*.pb

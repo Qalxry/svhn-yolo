@@ -17,16 +17,19 @@ USER_DATA_DIR = os.path.join(BASE_DIR, "user_data")
 ORIGINAL_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset")
 
 # 增强后的数据集目录
-ENHANCED_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset_enhanced")
+# ENHANCED_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset_addval")
+# ENHANCED_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset_enhanced")
+ENHANCED_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset_enhanced_extra")
 
 # 配置选项
 NUM_WORKERS = os.cpu_count()  # 使用CPU核心数的4倍作为工作线程数
+USE_AUGMENT = True  # 是否使用图像增强
 USE_VAL_FOR_TRAIN = True  # 是否将验证集的一部分加入训练集
 VAL_TRAIN_RATIO = 0.8  # 验证集中用于训练的比例
-SAVE_AUGMENTATION_PREVIEW = True  # 是否预览增强结果
-SHOW_PREVIEW = True  # 是否显示增强预览
-AUGMENT_COUNT = 4
-RARE_MORE_AUGMENT_COUNT = 2
+SAVE_AUGMENTATION_PREVIEW = False  # 是否预览增强结果
+SHOW_PREVIEW = False  # 是否显示增强预览
+AUGMENT_COUNT = 4   # 每张图像增强的数量
+RARE_MORE_AUGMENT_COUNT = 2 # 对于较少出现的数字，额外增强的数量
 
 # # 图像增强配置 (Basic)
 # def get_augmentation(extra=False, **kwargs):
@@ -485,13 +488,14 @@ def augment_dataset(use_val_for_train=USE_VAL_FOR_TRAIN, preview=SAVE_AUGMENTATI
         )
 
     # 增强训练集
-    print("开始增强训练集...")
-    augment_train_set(
-        train_img_dir,
-        train_label_dir,
-        train_img_dir,
-        train_label_dir,
-    )
+    if USE_AUGMENT:
+        print("开始使用Albumentations增强训练集...")
+        augment_train_set(
+            train_img_dir,
+            train_label_dir,
+            train_img_dir,
+            train_label_dir,
+        )
 
     # 创建数据集配置文件
     create_yolo_config(ENHANCED_DATASET_DIR)
@@ -686,7 +690,7 @@ def completed_tag():
 
 
 if __name__ == "__main__":
-    if not os.path.exists(os.path.join(USER_DATA_DIR, "data_augmented121.txt")):
+    if not os.path.exists(os.path.join(USER_DATA_DIR, "data_augmented.txt")):
         print("开始进行图像数据集增强...")
         if os.path.exists(ENHANCED_DATASET_DIR):
             print(f"已删除旧的增强数据集目录: {ENHANCED_DATASET_DIR}")
