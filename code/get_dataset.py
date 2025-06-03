@@ -241,11 +241,15 @@ def completed_tag():
 if __name__ == "__main__":
     if not os.path.exists(os.path.join(USER_DATA_DIR, "data_downloaded.txt")):
         print("开始下载和转换数据...")
+        
+        # 下载原始数据
         download_raw_data(RAW_DATA_DIR)
         if os.path.exists(YOLO_DATASET_DIR):
             print(f"已删除旧的YOLO数据集目录: {YOLO_DATASET_DIR}")
             shutil.rmtree(YOLO_DATASET_DIR)
         os.makedirs(YOLO_DATASET_DIR, exist_ok=True)
+        
+        # 转换为YOLO格式
         convert_to_yolo_format(RAW_DATA_DIR, YOLO_DATASET_DIR)
         completed_tag()
     else:

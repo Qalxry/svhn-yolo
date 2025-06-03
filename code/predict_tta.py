@@ -58,11 +58,20 @@ def process_single_prediction(pred, img_path):
     # 获取文件名
     file_name = os.path.basename(img_path)
 
+    needs_tta = False
+    if ENABLE_TTA:
+        if APPLY_TTA_FOR_HARD_CASES_ONLY:
+            # 如果只对难例使用TTA，则检查是否有置信度低于阈值的检测
+            needs_tta = any(conf < TTA_CONFIDENCE_THRESHOLD for conf in confidence_scores) if confidence_scores else True
+        else:
+            # 如果对所有图片都使用TTA，则直接设置需要TTA
+            needs_tta = True
+    
     return {
         "file_name": file_name,
         "file_code": file_code,
         "confidence_scores": confidence_scores,
-        "needs_tta": any(conf < TTA_CONFIDENCE_THRESHOLD for conf in confidence_scores) if confidence_scores else True,
+        "needs_tta": needs_tta,
     }
 
 
@@ -73,10 +82,10 @@ def apply_tta(model, image_path):
     if image is None:
         return
 
-    # 应用增强（第一个增强只是归一化）
+    # 转换为RGB格式
     augmented_images = [Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))]  # 原图PIL格式
 
-    # 添加5个增强版本（已经有原图）
+    # 添加增强版本（已经有原图）
     for i in range(TTA_NUM_AUGMENTATIONS):
         # PIL转numpy，增强，再转回PIL
         augmented_img = get_augmentation()(image=image, bboxes=[], class_labels=[])["image"]
@@ -152,15 +161,14 @@ def predict_and_save_results():
 
         # 处理预测结果
         for j, (img_path, pred) in enumerate(zip(batch_paths, preds)):
+            # 处理单张图片的预测结果：文件名、识别结果、置信度、是否需要TTA
             result = process_single_prediction(pred, img_path)
 
-            # 如果启用TTA且该样本需要TTA，则加入候选
-            if ENABLE_TTA and APPLY_TTA_FOR_HARD_CASES_ONLY and result["needs_tta"]:
+            if result["needs_tta"]:
+                # 如果启用TTA且该样本为难样本需要TTA，则加入候选，后续处理
                 tta_candidates.append(img_path)
-                # 暂不加入结果，TTA后再加入
-                # print(f"低置信度样本: {result['file_name']}，需要TTA。")
             else:
-                # 直接加入结果
+                # 否则直接加入结果
                 results.append({"file_name": result["file_name"], "file_code": result["file_code"]})
 
     print(f"无需TTA处理的图片数: {len(results)}")
