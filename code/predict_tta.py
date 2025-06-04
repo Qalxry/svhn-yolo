@@ -20,7 +20,7 @@ YOLO_DATASET_DIR = os.path.join(DATA_DIR, "yolo_dataset")
 os.makedirs(RESULT_DIR, exist_ok=True)
 
 # 加载最佳模型，根据需要修改模型路径和输出名称
-OUTPUT_NAME = "best"
+OUTPUT_NAME = "128_tta"
 MODEL_PATH = os.path.join(USER_DATA_DIR, "model_data/best.pt")
 # OUTPUT_NAME = "train_set_with_8k_val_augmented_final_tta"
 # MODEL_PATH = os.path.join(USER_DATA_DIR, "remote/final/best.pt")
@@ -33,7 +33,7 @@ CONF_THRESHOLD = 0.3
 ENABLE_TTA = True
 APPLY_TTA_FOR_HARD_CASES_ONLY = True  # 只对难例使用TTA
 TTA_CONFIDENCE_THRESHOLD = 0.5  # 如果有检测置信度低于该阈值，则应用TTA
-TTA_NUM_AUGMENTATIONS = 6  # 增强次数
+TTA_NUM_AUGMENTATIONS = 127  # 增强次数
 
 
 def process_single_prediction(pred, img_path):
@@ -144,55 +144,55 @@ def predict_and_save_results():
     results = []
     tta_candidates = []
 
-    # 第一轮：对所有图片常规推理
-    for i in tqdm(range(0, len(image_paths), BATCH_SIZE), desc="第一轮处理"):
-        batch_paths = image_paths[i : i + BATCH_SIZE]
-        batch_images = [Image.open(img_path) for img_path in batch_paths]
+    # # 第一轮：对所有图片常规推理
+    # for i in tqdm(range(0, len(image_paths), BATCH_SIZE), desc="第一轮处理"):
+    #     batch_paths = image_paths[i : i + BATCH_SIZE]
+    #     batch_images = [Image.open(img_path) for img_path in batch_paths]
 
-        # 批量预测
-        preds = model(
-            batch_images,
-            imgsz=320,
-            conf=CONF_THRESHOLD,
-            batch=BATCH_SIZE,
-            verbose=False,
-            device="0" if torch.cuda.is_available() else "cpu",
-        )
+    #     # 批量预测
+    #     preds = model(
+    #         batch_images,
+    #         imgsz=320,
+    #         conf=CONF_THRESHOLD,
+    #         batch=BATCH_SIZE,
+    #         verbose=False,
+    #         device="0" if torch.cuda.is_available() else "cpu",
+    #     )
 
-        # 处理预测结果
-        for j, (img_path, pred) in enumerate(zip(batch_paths, preds)):
-            # 处理单张图片的预测结果：文件名、识别结果、置信度、是否需要TTA
-            result = process_single_prediction(pred, img_path)
+    #     # 处理预测结果
+    #     for j, (img_path, pred) in enumerate(zip(batch_paths, preds)):
+    #         # 处理单张图片的预测结果：文件名、识别结果、置信度、是否需要TTA
+    #         result = process_single_prediction(pred, img_path)
 
-            if result["needs_tta"]:
-                # 如果启用TTA且该样本为难样本需要TTA，则加入候选，后续处理
-                tta_candidates.append(img_path)
-            else:
-                # 否则直接加入结果
-                results.append({"file_name": result["file_name"], "file_code": result["file_code"]})
+    #         if result["needs_tta"]:
+    #             # 如果启用TTA且该样本为难样本需要TTA，则加入候选，后续处理
+    #             tta_candidates.append(img_path)
+    #         else:
+    #             # 否则直接加入结果
+    #             results.append({"file_name": result["file_name"], "file_code": result["file_code"]})
 
-    print(f"无需TTA处理的图片数: {len(results)}")
-    print(f"需要TTA的低置信度样本数: {len(tta_candidates)}")
-    print(f"总图片数: {len(image_paths)}")
+    # print(f"无需TTA处理的图片数: {len(results)}")
+    # print(f"需要TTA的低置信度样本数: {len(tta_candidates)}")
+    # print(f"总图片数: {len(image_paths)}")
 
-    # 保存TTA候选样本
-    tta_candidates_path = os.path.join(USER_DATA_DIR, "temp_tta_candidates.txt")
-    with open(tta_candidates_path, "w") as f:
-        for img_path in tta_candidates:
-            f.write(f"{img_path}\n")
-    print(f"低置信度样本已保存到: '{tta_candidates_path}'")
+    # # 保存TTA候选样本
+    # tta_candidates_path = os.path.join(USER_DATA_DIR, "temp_tta_candidates.txt")
+    # with open(tta_candidates_path, "w") as f:
+    #     for img_path in tta_candidates:
+    #         f.write(f"{img_path}\n")
+    # print(f"低置信度样本已保存到: '{tta_candidates_path}'")
 
-    # 保存临时结果
-    temp_results_path = os.path.join(USER_DATA_DIR, "temp_results.csv")
-    temp_df = pd.DataFrame(results)
-    temp_df.to_csv(temp_results_path, index=False)
-    print(f"临时结果已保存到: '{temp_results_path}'")
+    # # 保存临时结果
+    # temp_results_path = os.path.join(USER_DATA_DIR, "temp_results.csv")
+    # temp_df = pd.DataFrame(results)
+    # temp_df.to_csv(temp_results_path, index=False)
+    # print(f"临时结果已保存到: '{temp_results_path}'")
 
-    # tta_candidates = []
-    # with open(os.path.join(RESULT_DIR, "temp_tta_candidates.txt"), "r") as f:
-    #     for line in f:
-    #         tta_candidates.append(line.strip())
-    # print(f"从文件加载低置信度样本数: {len(tta_candidates)}")
+    tta_candidates = []
+    with open(os.path.join(RESULT_DIR, "temp_tta_candidates.txt"), "r") as f:
+        for line in f:
+            tta_candidates.append(line.strip())
+    print(f"从文件加载低置信度样本数: {len(tta_candidates)}")
 
     # 第二轮：对低置信度样本应用TTA
     if ENABLE_TTA and tta_candidates:
